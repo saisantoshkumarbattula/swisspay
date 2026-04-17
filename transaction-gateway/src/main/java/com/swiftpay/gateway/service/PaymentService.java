@@ -85,27 +85,29 @@ public class PaymentService {
                 .currency(request.getCurrency())
                 .status(PaymentStatus.PENDING)
                 .build();
-        payment = paymentRepository.save(payment);
-        log.info("Payment persisted | transactionId={} status=PENDING", payment.getId());
+
+        // savedPayment is effectively final — safe to capture in the lambda below
+        final Payment savedPayment = paymentRepository.save(payment);
+        log.info("Payment persisted | transactionId={} status=PENDING", savedPayment.getId());
 
         // 4. Emit Kafka event
         PaymentInitiatedEvent event = PaymentInitiatedEvent.builder()
-                .transactionId(payment.getId())
-                .idempotencyKey(payment.getIdempotencyKey())
-                .senderId(payment.getSenderId())
-                .receiverId(payment.getReceiverId())
-                .amount(payment.getAmount())
-                .currency(payment.getCurrency())
+                .transactionId(savedPayment.getId())
+                .idempotencyKey(savedPayment.getIdempotencyKey())
+                .senderId(savedPayment.getSenderId())
+                .receiverId(savedPayment.getReceiverId())
+                .amount(savedPayment.getAmount())
+                .currency(savedPayment.getCurrency())
                 .initiatedAt(Instant.now())
                 .build();
 
-        kafkaTemplate.send(paymentInitiatedTopic, payment.getId().toString(), event)
+        kafkaTemplate.send(paymentInitiatedTopic, savedPayment.getId().toString(), event)
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
-                        log.error("Failed to publish PaymentInitiatedEvent | transactionId={}", payment.getId(), ex);
+                        log.error("Failed to publish PaymentInitiatedEvent | transactionId={}", savedPayment.getId(), ex);
                     } else {
                         log.info("PaymentInitiatedEvent published | transactionId={} partition={} offset={}",
-                                payment.getId(),
+                                savedPayment.getId(),
                                 result.getRecordMetadata().partition(),
                                 result.getRecordMetadata().offset());
                     }
@@ -114,7 +116,7 @@ public class PaymentService {
         // 5. Mark idempotency key as completed
         idempotencyService.markCompleted(request.getIdempotencyKey());
 
-        return toResponse(payment);
+        return toResponse(savedPayment);
     }
 
     /**
