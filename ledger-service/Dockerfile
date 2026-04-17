@@ -8,7 +8,8 @@ COPY .mvn .mvn
 RUN ./mvnw dependency:go-offline -q
 
 COPY src src
-RUN ./mvnw package -DskipTests -q
+# RUN ./mvnw package -DskipTests -q
+RUN ./mvnw package -Dmaven.test.skip=true -Dspring-boot.run.jvmArguments="-Xmx256m" -q
 
 # ── Runtime Stage ─────────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine AS runtime
