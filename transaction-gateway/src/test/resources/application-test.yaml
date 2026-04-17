@@ -1,0 +1,31 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  flyway:
+    enabled: false  # Flyway off in tests; Hibernate manages schema via create-drop
+
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+
+  data:
+    redis:
+      host: localhost
+      port: 6370  # Will be overridden by TestRedisConfig in integration tests
+      password: ""
+      ssl:
+        enabled: false
+
+swiftpay:
+  idempotency:
+    ttl-hours: 1
+  kafka:
+    topic:
+      payment-initiated: payment-initiated
+      payment-completed: payment-completed
+      payment-failed: payment-failed
+
+logging:
+  level:
+    com.swiftpay: DEBUG

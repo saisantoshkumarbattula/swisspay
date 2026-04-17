@@ -1,0 +1,30 @@
+# Maven build artifacts
+**/target/
+**/*.class
+**/*.jar
+!**/mvnw
+
+# Environment — NEVER commit real .env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# AWS keys — safety net
+*.pem
+*.key

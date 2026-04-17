@@ -1,0 +1,34 @@
+# ── Build Stage ──────────────────────────────────────────────────────────────
+FROM eclipse-temurin:21-jdk-alpine AS builder
+WORKDIR /build
+
+COPY mvnw pom.xml ./
+COPY .mvn .mvn
+
+# Download dependencies first (layer caching)
+RUN ./mvnw dependency:go-offline -q
+
+# Copy source and build
+COPY src src
+RUN ./mvnw package -DskipTests -q
+
+# ── Runtime Stage ─────────────────────────────────────────────────────────────
+FROM eclipse-temurin:21-jre-alpine AS runtime
+WORKDIR /app
+
+# Non-root user for security
+RUN addgroup -S swiftpay && adduser -S swiftpay -G swiftpay
+USER swiftpay
+
+COPY --from=builder /build/target/*.jar app.jar
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:8080/actuator/health || exit 1
+
+ENTRYPOINT ["java", \
+  "-XX:+UseContainerSupport", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "-jar", "app.jar"]

@@ -1,0 +1,217 @@
+name: SwiftPay CI/CD
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  JAVA_VERSION: '21'
+
+jobs:
+
+  # ─── Build & Test ──────────────────────────────────────────────────────────
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: swiftpay_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      # ── Transaction Gateway ──────────────────────────────────────────────
+      - name: Build transaction-gateway
+        working-directory: transaction-gateway
+        run: ./mvnw clean package -DskipTests -q
+
+      - name: Unit Test transaction-gateway
+        working-directory: transaction-gateway
+        run: ./mvnw test -Dtest="*ServiceTest" -q
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: 6379
+          SPRING_DATA_REDIS_PASSWORD: ""
+          SPRING_DATA_REDIS_SSL_ENABLED: "false"
+
+      - name: Integration Test transaction-gateway (Testcontainers)
+        working-directory: transaction-gateway
+        run: ./mvnw test -Dtest="*IntegrationTest" -q
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: 6379
+          SPRING_DATA_REDIS_PASSWORD: ""
+          SPRING_DATA_REDIS_SSL_ENABLED: "false"
+
+      # ── Ledger Service ───────────────────────────────────────────────────
+      - name: Build ledger-service
+        working-directory: ledger-service
+        run: ./mvnw clean package -DskipTests -q
+
+      - name: Test ledger-service
+        working-directory: ledger-service
+        run: ./mvnw test -q
+        env:
+          SPRING_PROFILES_ACTIVE: test
+
+      # ── Test Reports ─────────────────────────────────────────────────────
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            transaction-gateway/target/surefire-reports/
+            ledger-service/target/surefire-reports/
+          retention-days: 7
+
+  # ─── Docker Build & Push to GHCR ──────────────────────────────────────────
+  docker-build:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      gateway-image: ${{ steps.meta-gateway.outputs.tags }}
+      ledger-image:  ${{ steps.meta-ledger.outputs.tags }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata — transaction-gateway
+        id: meta-gateway
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/swiftpay-gateway
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            latest
+
+      - name: Build and push — transaction-gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: ./transaction-gateway
+          push: true
+          tags: ${{ steps.meta-gateway.outputs.tags }}
+          labels: ${{ steps.meta-gateway.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata — ledger-service
+        id: meta-ledger
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/swiftpay-ledger
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            latest
+
+      - name: Build and push — ledger-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ledger-service
+          push: true
+          tags: ${{ steps.meta-ledger.outputs.tags }}
+          labels: ${{ steps.meta-ledger.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── Deploy to EC2 via SSH ─────────────────────────────────────────────────
+  deploy-to-ec2:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/swiftpay 2>/dev/null || git clone https://github.com/${{ github.repository }}.git ~/swiftpay && cd ~/swiftpay
+
+            echo ">>> Pulling latest code..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo ">>> Verifying .env exists..."
+            if [ ! -f .env ]; then
+              cp .env.example .env
+              echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env
+              echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+              echo "WARNING: .env was created from template. Review ~/swiftpay/.env on EC2."
+            fi
+
+            echo ">>> Rebuilding and restarting services..."
+            docker compose down --remove-orphans || true
+            docker compose up --build -d
+
+            echo ">>> Waiting for health (up to 3 min)..."
+            for i in $(seq 1 18); do
+              GW=$(docker inspect --format='{{.State.Health.Status}}' swiftpay-gateway 2>/dev/null || echo starting)
+              LD=$(docker inspect --format='{{.State.Health.Status}}' swiftpay-ledger  2>/dev/null || echo starting)
+              [ "$GW" = "healthy" ] && [ "$LD" = "healthy" ] && echo "All healthy!" && break
+              echo "  Attempt $i/18: gateway=$GW ledger=$LD"
+              sleep 10
+            done
+
+            echo "=== Deploy complete on $(date) ==="
