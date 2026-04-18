@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -32,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers
 @EmbeddedKafka(partitions = 1, topics = {"payment-initiated", "payment-completed", "payment-failed"})
 @ActiveProfiles("test")
+@Sql(scripts = "/seed-wallets.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class PaymentGatewayIntegrationTest {
 
     @Container
