@@ -37,12 +37,12 @@ export const options = {
 const SENDERS = [
   'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
   'b1ffcd88-1d1c-5fe9-cc7e-7cc0ce491b22',
-  'c2ggde77-2e2d-6gf0-dd8f-8dd1df502c33',
+  'c2ccde77-2e2d-4cf0-dd8f-8dd1df502c33',
 ];
 const RECEIVERS = [
   'b1ffcd88-1d1c-5fe9-cc7e-7cc0ce491b22',
-  'c2ggde77-2e2d-6gf0-dd8f-8dd1df502c33',
-  'd3hhef66-3f3e-7hg1-ee9g-9ee2eg613d44',
+  'c2ccde77-2e2d-4cf0-dd8f-8dd1df502c33',
+  'd3ddef66-3f3e-4de1-ae9a-9ee2ea613d44',
 ];
 
 function randomElement(arr) {

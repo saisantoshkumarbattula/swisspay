@@ -6,13 +6,17 @@ COPY mvnw pom.xml ./
 COPY .mvn .mvn
 
 # Download dependencies first (layer caching)
-RUN ./mvnw dependency:go-offline -q
+#RUN ./mvnw dependency:go-offline -q
 
 # Copy source and build
 COPY src src
 # RUN ./mvnw package -DskipTests -q
 # RUN ./mvnw package -Dmaven.test.skip=true -q
-RUN ./mvnw package -Dmaven.test.skip=true -Dspring-boot.run.jvmArguments="-Xmx256m" -q
+
+
+RUN chmod +x mvnw
+
+RUN ./mvnw package -Dmaven.test.skip=true -q
 
 # ── Runtime Stage ─────────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine AS runtime

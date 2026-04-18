@@ -5,11 +5,14 @@ WORKDIR /build
 COPY mvnw pom.xml ./
 COPY .mvn .mvn
 
-RUN ./mvnw dependency:go-offline -q
+#RUN ./mvnw dependency:go-offline -q
 
 COPY src src
+
+RUN chmod +x mvnw
+
 # RUN ./mvnw package -DskipTests -q
-RUN ./mvnw package -Dmaven.test.skip=true -Dspring-boot.run.jvmArguments="-Xmx256m" -q
+RUN ./mvnw package -Dmaven.test.skip=true -q
 
 # ── Runtime Stage ─────────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine AS runtime
