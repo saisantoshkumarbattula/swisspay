@@ -21,18 +21,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Core business logic for payment initiation.
- *
- * <p>Flow:
- * <ol>
- *   <li>Check idempotency key against Redis  →  reject duplicates</li>
- *   <li>Read (cached) sender balance         →  reject if insufficient</li>
- *   <li>Persist PENDING record in PostgreSQL</li>
- *   <li>Emit {@link PaymentInitiatedEvent} to Kafka</li>
- *   <li>Mark idempotency key as COMPLETED in Redis</li>
- * </ol>
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -55,28 +43,23 @@ public class PaymentService {
                 request.getIdempotencyKey(), request.getSenderId(), request.getReceiverId(),
                 request.getAmount(), request.getCurrency());
 
-        // 1. Idempotency guard — Redis SET NX
         if (!idempotencyService.tryAcquire(request.getIdempotencyKey())) {
-            // Return the existing payment if we can find it
             return paymentRepository
                     .findByIdempotencyKey(request.getIdempotencyKey())
                     .map(this::toResponse)
                     .orElseThrow(() -> new DuplicatePaymentException(request.getIdempotencyKey()));
         }
 
-        // 2. Balance validation (Redis cached, fallback to DB)
         BigDecimal senderBalance = balanceCacheService.getCachedBalance(request.getSenderId())
                 .orElseThrow(() -> new WalletNotFoundException(request.getSenderId().toString()));
 
         if (senderBalance.compareTo(request.getAmount()) < 0) {
-            // Release the idempotency lock so the user can retry with a valid amount
             idempotencyService.markCompleted(request.getIdempotencyKey());
             throw new InsufficientFundsException(
                     String.format("Sender %s has insufficient funds. Available: %s, Requested: %s",
                             request.getSenderId(), senderBalance, request.getAmount()));
         }
 
-        // 3. Persist with PENDING status
         Payment payment = Payment.builder()
                 .idempotencyKey(request.getIdempotencyKey())
                 .senderId(request.getSenderId())
@@ -86,11 +69,9 @@ public class PaymentService {
                 .status(PaymentStatus.PENDING)
                 .build();
 
-        // savedPayment is effectively final — safe to capture in the lambda below
         final Payment savedPayment = paymentRepository.save(payment);
         log.info("Payment persisted | transactionId={} status=PENDING", savedPayment.getId());
 
-        // 4. Emit Kafka event
         PaymentInitiatedEvent event = PaymentInitiatedEvent.builder()
                 .transactionId(savedPayment.getId())
                 .idempotencyKey(savedPayment.getIdempotencyKey())
@@ -113,7 +94,6 @@ public class PaymentService {
                     }
                 });
 
-        // 5. Mark idempotency key as completed
         idempotencyService.markCompleted(request.getIdempotencyKey());
 
         return toResponse(savedPayment);
@@ -132,7 +112,6 @@ public class PaymentService {
             payment.setFailureReason(event.getFailureReason());
             paymentRepository.save(payment);
 
-            // Evict cached balances after a successful transfer
             if (newStatus == PaymentStatus.COMPLETED) {
                 balanceCacheService.evictBalance(event.getSenderId());
                 balanceCacheService.evictBalance(event.getReceiverId());

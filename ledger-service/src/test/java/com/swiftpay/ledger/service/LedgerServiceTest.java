@@ -58,14 +58,12 @@ class LedgerServiceTest {
         PaymentInitiatedEvent event = buildEvent(BigDecimal.valueOf(100));
         Payment payment = buildPendingPayment(event);
 
-        // Wallet locks - order by UUID compareTo
         Wallet senderWallet   = buildWallet(SENDER_ID,   BigDecimal.valueOf(500));
         Wallet receiverWallet = buildWallet(RECEIVER_ID, BigDecimal.valueOf(100));
 
         when(paymentRepository.findById(TX_ID)).thenReturn(Optional.of(payment));
         when(paymentRepository.save(any())).thenReturn(payment);
         
-        // Mock both lock calls - the service locks in UUID-sorted order
         when(walletRepository.findByUserIdForUpdate(SENDER_ID)).thenReturn(Optional.of(senderWallet));
         when(walletRepository.findByUserIdForUpdate(RECEIVER_ID)).thenReturn(Optional.of(receiverWallet));
         when(walletRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -74,14 +72,11 @@ class LedgerServiceTest {
 
         ledgerService.processPayment(event);
 
-        // Verify debit and credit
         ArgumentCaptor<Wallet> walletCaptor = ArgumentCaptor.forClass(Wallet.class);
         verify(walletRepository, times(2)).save(walletCaptor.capture());
         
-        // Verify two ledger entries
         verify(ledgerEntryRepository, times(2)).save(any(LedgerEntry.class));
         
-        // Verify COMPLETED event emitted
         verify(kafkaTemplate).send(eq("payment-completed"), anyString(), any(PaymentResultEvent.class));
     }
 
@@ -91,7 +86,7 @@ class LedgerServiceTest {
         PaymentInitiatedEvent event = buildEvent(BigDecimal.valueOf(9999));
         Payment payment = buildPendingPayment(event);
 
-        Wallet senderWallet   = buildWallet(SENDER_ID,   BigDecimal.valueOf(10));  // too low
+        Wallet senderWallet   = buildWallet(SENDER_ID,   BigDecimal.valueOf(10));
         Wallet receiverWallet = buildWallet(RECEIVER_ID, BigDecimal.valueOf(100));
 
         when(paymentRepository.findById(TX_ID)).thenReturn(Optional.of(payment));

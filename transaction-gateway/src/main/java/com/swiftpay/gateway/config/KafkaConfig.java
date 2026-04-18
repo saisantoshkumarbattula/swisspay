@@ -23,7 +23,7 @@ public class KafkaConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
-    // ─── Producer ────────────────────────────────────────────────────────────
+
 
     @Bean
     public ProducerFactory<String, PaymentInitiatedEvent> paymentInitiatedProducerFactory() {
@@ -42,7 +42,7 @@ public class KafkaConfig {
         return new KafkaTemplate<>(paymentInitiatedProducerFactory());
     }
 
-    // ─── Consumer ────────────────────────────────────────────────────────────
+
 
     @Bean
     public ConsumerFactory<String, PaymentResultEvent> resultEventConsumerFactory() {

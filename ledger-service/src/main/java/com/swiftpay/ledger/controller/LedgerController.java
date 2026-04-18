@@ -18,9 +18,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Reporting endpoint for transaction history (Service B).
- */
 @RestController
 @RequestMapping("/v1/ledger")
 @RequiredArgsConstructor

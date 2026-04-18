@@ -16,19 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/**
- * Core ledger processing service.
- *
- * <p>For every PaymentInitiatedEvent it:
- * <ol>
- *   <li>Acquires PESSIMISTIC_WRITE locks on sender + receiver wallets</li>
- *   <li>Validates that sender still has sufficient balance</li>
- *   <li>Performs atomic debit/credit inside a single DB transaction</li>
- *   <li>Writes two immutable {@link LedgerEntry} records (double-entry)</li>
- *   <li>Marks the payment as COMPLETED (or FAILED)</li>
- *   <li>Emits a PaymentCompleted or PaymentFailed event to Kafka</li>
- * </ol>
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -50,7 +37,6 @@ public class LedgerService {
         log.info("Processing payment | transactionId={} sender={} receiver={} amount={}",
                 event.getTransactionId(), event.getSenderId(), event.getReceiverId(), event.getAmount());
 
-        // 1. Upsert Payment record (may not exist in Ledger DB yet)
         Payment payment = paymentRepository.findById(event.getTransactionId())
                 .orElseGet(() -> {
                     Payment p = Payment.builder()
@@ -65,7 +51,6 @@ public class LedgerService {
                     return paymentRepository.save(p);
                 });
 
-        // Idempotency guard: skip already-processed events
         if (payment.getStatus() == PaymentStatus.COMPLETED
                 || payment.getStatus() == PaymentStatus.FAILED) {
             log.warn("Payment {} already in terminal state {}. Skipping.", event.getTransactionId(), payment.getStatus());
@@ -76,7 +61,6 @@ public class LedgerService {
         paymentRepository.save(payment);
 
         try {
-            // 2. Acquire PESSIMISTIC_WRITE locks (ordered by ID to prevent deadlocks)
             var firstId  = event.getSenderId().compareTo(event.getReceiverId()) < 0 ? event.getSenderId()   : event.getReceiverId();
             var secondId = event.getSenderId().compareTo(event.getReceiverId()) < 0 ? event.getReceiverId() : event.getSenderId();
 
@@ -88,7 +72,6 @@ public class LedgerService {
             Wallet senderWallet   = event.getSenderId().equals(firstId)   ? first : second;
             Wallet receiverWallet = event.getReceiverId().equals(firstId) ? first : second;
 
-            // 3. Final balance check (read-after-lock)
             if (senderWallet.getBalance().compareTo(event.getAmount()) < 0) {
                 throw new IllegalStateException(
                         String.format("Insufficient funds: sender %s has %s, needs %s",
@@ -98,13 +81,11 @@ public class LedgerService {
             BigDecimal senderBefore   = senderWallet.getBalance();
             BigDecimal receiverBefore = receiverWallet.getBalance();
 
-            // 4. Atomic debit/credit
             senderWallet.setBalance(senderBefore.subtract(event.getAmount()));
             receiverWallet.setBalance(receiverBefore.add(event.getAmount()));
             walletRepository.save(senderWallet);
             walletRepository.save(receiverWallet);
 
-            // 5. Double-entry ledger records
             ledgerEntryRepository.save(LedgerEntry.builder()
                     .paymentId(event.getTransactionId())
                     .walletId(event.getSenderId())
@@ -123,14 +104,12 @@ public class LedgerService {
                     .balanceAfter(receiverWallet.getBalance())
                     .build());
 
-            // 6. Mark payment as COMPLETED
             payment.setStatus(PaymentStatus.COMPLETED);
             paymentRepository.save(payment);
 
             log.info("Payment COMPLETED | transactionId={} senderBalance={} receiverBalance={}",
                     event.getTransactionId(), senderWallet.getBalance(), receiverWallet.getBalance());
 
-            // 7. Emit success event
             emitResult(event, "COMPLETED", null, completedTopic);
 
         } catch (Exception ex) {
@@ -139,7 +118,7 @@ public class LedgerService {
             payment.setFailureReason(ex.getMessage());
             paymentRepository.save(payment);
             emitResult(event, "FAILED", ex.getMessage(), failedTopic);
-            throw ex; // Re-throw to trigger Kafka retry if configured
+            throw ex;
         }
     }
 
