@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS wallets (
     user_id    UUID         NOT NULL,
     balance    NUMERIC(19,4) NOT NULL DEFAULT 0,
-    currency   VARCHAR(3)   NOT NULL DEFAULT 'USD',
+    currency   CHAR(3)      NOT NULL DEFAULT 'USD',
     version    BIGINT       NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS payments (
     sender_id        UUID          NOT NULL,
     receiver_id      UUID          NOT NULL,
     amount           NUMERIC(19,4) NOT NULL,
-    currency         VARCHAR(3)    NOT NULL,
+    currency         CHAR(3)       NOT NULL,
     status           VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
     failure_reason   VARCHAR(512),
     created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
@@ -43,6 +43,6 @@ CREATE INDEX IF NOT EXISTS idx_payments_created_at  ON payments(created_at DESC)
 INSERT INTO wallets (user_id, balance, currency) VALUES
     ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 10000.0000, 'USD'),
     ('b1ffcd88-1d1c-5fe9-cc7e-7cc0ce491b22', 5000.0000,  'USD'),
-    ('c2ccde77-2e2d-4cf0-dd8f-8dd1df502c33', 2500.0000,  'USD'),
-    ('d3ddef66-3f3e-4de1-ae9a-9ee2ea613d44', 500.0000,   'USD')
+    ('c2ggde77-2e2d-6gf0-dd8f-8dd1df502c33', 2500.0000,  'USD'),
+    ('d3hhef66-3f3e-7hg1-ee9g-9ee2eg613d44', 500.0000,   'USD')
 ON CONFLICT (user_id) DO NOTHING;
