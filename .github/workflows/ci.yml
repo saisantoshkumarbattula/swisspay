@@ -174,50 +174,50 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─── Deploy to EC2 via SSH ─────────────────────────────────────────────────
-  deploy-to-ec2:
-    name: Deploy to EC2
-    runs-on: ubuntu-latest
-    needs: docker-build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  # # ─── Deploy to EC2 via SSH ─────────────────────────────────────────────────
+  # deploy-to-ec2:
+  #   name: Deploy to EC2
+  #   runs-on: ubuntu-latest
+  #   needs: docker-build
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            set -e
-            cd ~/swiftpay 2>/dev/null || git clone https://github.com/${{ github.repository }}.git ~/swiftpay && cd ~/swiftpay
+  #     - name: Deploy via SSH
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ secrets.EC2_HOST }}
+  #         username: ${{ secrets.EC2_USER }}
+  #         key: ${{ secrets.EC2_SSH_KEY }}
+  #         script: |
+  #           set -e
+  #           cd ~/swiftpay 2>/dev/null || git clone https://github.com/${{ github.repository }}.git ~/swiftpay && cd ~/swiftpay
 
-            echo ">>> Pulling latest code..."
-            git fetch origin main
-            git reset --hard origin/main
+  #           echo ">>> Pulling latest code..."
+  #           git fetch origin main
+  #           git reset --hard origin/main
 
-            echo ">>> Verifying .env exists..."
-            if [ ! -f .env ]; then
-              cp .env.example .env
-              echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env
-              echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-              echo "WARNING: .env was created from template. Review ~/swiftpay/.env on EC2."
-            fi
+  #           echo ">>> Verifying .env exists..."
+  #           if [ ! -f .env ]; then
+  #             cp .env.example .env
+  #             echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env
+  #             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+  #             echo "WARNING: .env was created from template. Review ~/swiftpay/.env on EC2."
+  #           fi
 
-            echo ">>> Rebuilding and restarting services..."
-            docker compose down --remove-orphans || true
-            docker compose up --build -d
+  #           echo ">>> Rebuilding and restarting services..."
+  #           docker compose down --remove-orphans || true
+  #           docker compose up --build -d
 
-            echo ">>> Waiting for health (up to 3 min)..."
-            for i in $(seq 1 18); do
-              GW=$(docker inspect --format='{{.State.Health.Status}}' swiftpay-gateway 2>/dev/null || echo starting)
-              LD=$(docker inspect --format='{{.State.Health.Status}}' swiftpay-ledger  2>/dev/null || echo starting)
-              [ "$GW" = "healthy" ] && [ "$LD" = "healthy" ] && echo "All healthy!" && break
-              echo "  Attempt $i/18: gateway=$GW ledger=$LD"
-              sleep 10
-            done
+  #           echo ">>> Waiting for health (up to 3 min)..."
+  #           for i in $(seq 1 18); do
+  #             GW=$(docker inspect --format='{{.State.Health.Status}}' swiftpay-gateway 2>/dev/null || echo starting)
+  #             LD=$(docker inspect --format='{{.State.Health.Status}}' swiftpay-ledger  2>/dev/null || echo starting)
+  #             [ "$GW" = "healthy" ] && [ "$LD" = "healthy" ] && echo "All healthy!" && break
+  #             echo "  Attempt $i/18: gateway=$GW ledger=$LD"
+  #             sleep 10
+  #           done
 
-            echo "=== Deploy complete on $(date) ==="
+  #           echo "=== Deploy complete on $(date) ==="
