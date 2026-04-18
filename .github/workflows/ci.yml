@@ -52,6 +52,9 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Make Maven wrappers executable
+        run: chmod +x transaction-gateway/mvnw ledger-service/mvnw
+
       # ── Transaction Gateway ──────────────────────────────────────────────
       - name: Build transaction-gateway
         working-directory: transaction-gateway
