@@ -72,19 +72,22 @@ class PaymentGatewayIntegrationTest {
     }
 
     @Test
-    @DisplayName("POST /v1/payments → 409 CONFLICT on duplicate idempotency key")
-    void shouldReturn409OnDuplicateIdempotencyKey() {
+    @DisplayName("POST /v1/payments → 202 ACCEPTED on duplicate idempotency key")
+    void shouldReturn202OnDuplicateIdempotencyKey() {
         String idempotencyKey = UUID.randomUUID().toString();
         PaymentRequest request = buildRequest(idempotencyKey, BigDecimal.valueOf(50));
 
         // First request — should succeed
-        restTemplate.postForEntity("/v1/payments", request, PaymentResponse.class);
+        ResponseEntity<PaymentResponse> firstResp =
+                restTemplate.postForEntity("/v1/payments", request, PaymentResponse.class);
 
-        // Second request with same key — should fail
-        ResponseEntity<String> secondResponse =
-                restTemplate.postForEntity("/v1/payments", request, String.class);
+        // Second request with same key — should return the exact same payment, idempotently
+        ResponseEntity<PaymentResponse> secondResp =
+                restTemplate.postForEntity("/v1/payments", request, PaymentResponse.class);
 
-        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(secondResp.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(secondResp.getBody()).isNotNull();
+        assertThat(secondResp.getBody().getTransactionId()).isEqualTo(firstResp.getBody().getTransactionId());
     }
 
     @Test
