@@ -11,7 +11,7 @@ env:
 
 jobs:
 
-  # ─── Build & Test ──────────────────────────────────────────────────────────
+  # Build & Test
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
@@ -55,7 +55,7 @@ jobs:
       - name: Make Maven wrappers executable
         run: chmod +x transaction-gateway/mvnw ledger-service/mvnw
 
-      # ── Transaction Gateway ──────────────────────────────────────────────
+      # Transaction Gateway
       - name: Build transaction-gateway
         working-directory: transaction-gateway
         run: ./mvnw clean package -Dmaven.test.skip=true -q
@@ -80,7 +80,7 @@ jobs:
           SPRING_DATA_REDIS_PASSWORD: ""
           SPRING_DATA_REDIS_SSL_ENABLED: "false"
 
-      # ── Ledger Service ───────────────────────────────────────────────────
+      # Ledger Service
       - name: Build ledger-service
         working-directory: ledger-service
         run: ./mvnw clean package -Dmaven.test.skip=true -q
@@ -97,7 +97,7 @@ jobs:
         env:
           SPRING_PROFILES_ACTIVE: test
 
-      # ── Test Reports ─────────────────────────────────────────────────────
+      # Test Reports
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: always()
@@ -108,7 +108,7 @@ jobs:
             ledger-service/target/surefire-reports/
           retention-days: 7
 
-  # ─── Docker Build & Push to GHCR ──────────────────────────────────────────
+  # Docker Build & Push to GHCR
   docker-build:
     name: Docker Build & Push
     runs-on: ubuntu-latest
@@ -177,7 +177,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # # ─── Deploy to EC2 via SSH ─────────────────────────────────────────────────
+  # # Deploy to EC2 via SSH
   # deploy-to-ec2:
   #   name: Deploy to EC2
   #   runs-on: ubuntu-latest

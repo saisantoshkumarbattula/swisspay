@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# ─────────────────────────────────────────────────────────────────────────────
 # deploy.sh — Called by GitHub Actions on EC2 via SSH after a push to main.
 # Also runnable manually:  bash deploy.sh
-# ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 REPO_DIR="${HOME}/swiftpay"
