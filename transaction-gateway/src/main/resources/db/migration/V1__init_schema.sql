@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS wallets (
     user_id    UUID         NOT NULL,
     balance    NUMERIC(19,4) NOT NULL DEFAULT 0,
-    currency   CHAR(3)      NOT NULL DEFAULT 'USD',
+    currency   VARCHAR(3)   NOT NULL DEFAULT 'USD',
     version    BIGINT       NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS payments (
     sender_id        UUID          NOT NULL,
     receiver_id      UUID          NOT NULL,
     amount           NUMERIC(19,4) NOT NULL,
-    currency         CHAR(3)       NOT NULL,
+    currency         VARCHAR(3)    NOT NULL,
     status           VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
     failure_reason   VARCHAR(512),
     created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
