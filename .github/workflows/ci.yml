@@ -82,9 +82,15 @@ jobs:
         working-directory: ledger-service
         run: ./mvnw clean package -DskipTests -q
 
-      - name: Test ledger-service
+      - name: Unit Test ledger-service
         working-directory: ledger-service
-        run: ./mvnw test -q
+        run: ./mvnw test -Dtest="*ServiceTest" -q
+        env:
+          SPRING_PROFILES_ACTIVE: test
+
+      - name: Context Test ledger-service (Testcontainers)
+        working-directory: ledger-service
+        run: ./mvnw test -Dtest="LedgerServiceApplicationTests" -q
         env:
           SPRING_PROFILES_ACTIVE: test
 

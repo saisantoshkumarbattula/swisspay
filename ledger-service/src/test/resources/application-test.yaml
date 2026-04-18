@@ -1,0 +1,28 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  flyway:
+    enabled: false  # Flyway off in tests; Hibernate manages schema via create-drop
+
+  datasource:
+    url: jdbc:tc:postgresql:16-alpine:///swiftpay_test
+    username: test
+    password: test
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers:localhost:9092}
+
+swiftpay:
+  kafka:
+    topic:
+      payment-initiated: payment-initiated
+      payment-completed: payment-completed
+      payment-failed: payment-failed
+
+logging:
+  level:
+    com.swiftpay: DEBUG
+    org.testcontainers: WARN
